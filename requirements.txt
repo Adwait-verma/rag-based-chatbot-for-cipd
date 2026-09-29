@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+pydantic-settings
+httpx
+beautifulsoup4
+trafilatura
+pymupdf
+openai
+psycopg[binary]
+pgvector
+rank-bm25
+tenacity
+pytest
+
