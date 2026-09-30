@@ -45,25 +45,39 @@ The first version should support programme, project, faculty, event, application
 
 ## Additional product ideas
 
-### Priority additions
+Keep the additional scope limited to these four features:
 
-- **Content change monitor:** compare each crawl with the previous version and alert staff when deadlines, fees, application links, people, or project details change.
-- **Conflict detector:** identify contradictory dates or facts across the website and brochures before the chatbot publishes an answer.
-- **Unanswered-question workflow:** group unanswered visitor questions, propose a draft answer or FAQ entry, attach the related evidence, and require staff approval before publication.
-- **FAQ gap dashboard:** rank missing topics by frequency, visitor type, and unsuccessful searches so CiPD can improve the website using real demand.
-- **Admin source console:** show ingestion failures, quarantined metadata, stale documents, access classification, citation coverage, and the last successful refresh.
-- **Role-aware staff search:** provide authenticated staff with a separate search interface for approved internal material while preserving the public/internal/confidential boundary.
+1. **FAQ gap and visitor-question analytics:** group anonymous questions by topic and audience, measure which questions were answered or handed off, and show which information visitors cannot easily find. The professor or authorised team can use this evidence to improve FAQs and website copy.
+2. **Structured storage for important facts:** store deadlines, fees, grants, eligibility rules, and official contacts as validated records linked to their source paragraphs. This gives time-sensitive answers an additional accuracy check.
+3. **Role-aware internal staff search:** provide an authenticated search experience for IIIT Delhi faculty and authorised staff. Public visitors continue to search only public content; internal material is filtered through database access rules.
+4. **Project, faculty, mentor, technology, and event discovery:** connect the centre's people, work, expertise, and activities through shared metadata so users can search across them from one place.
 
-### Useful extensions
+## Audience-aware user experience
 
-- **Application journey assistant:** guide a visitor from eligibility and programme fit through the official application steps, scholarships, grants, and contact route.
-- **Project and expertise discovery:** connect projects, technologies, categories, faculty expertise, mentors, and events through structured metadata without requiring a separate graph database initially.
-- **Document comparison:** compare the current brochure with an older cohort and clearly mark which facts changed.
-- **Event and deadline reminders:** let users opt in to calendar files or reminder links based on verified event data.
-- **Multilingual retrieval:** accept English or Hindi questions, retrieve from the original source language, and keep citations tied to the exact source text.
-- **Voice and accessibility mode:** support speech input, keyboard-only navigation, screen-reader labels, adjustable type, and concise answer mode.
-- **Feedback-assisted evaluation:** turn incorrect-answer reports and failed handoffs into reviewed evaluation cases without automatically training on raw visitor text.
-- **CMS drafting assistant:** prepare reviewed drafts for FAQs, project summaries, event descriptions, and image alt text; publishing always remains a staff action.
+CiPD serves people from IIIT Delhi and visitors from outside the college. The interface should make both groups comfortable without asking them to understand the site's structure first.
+
+### IIIT Delhi students, faculty, and staff
+
+- Offer starting prompts such as “Find a faculty member by expertise,” “Show projects using sensors,” “Which mentor works in embedded systems?” and “What events are coming up?”
+- Let signed-in authorised users switch to internal staff search, with the active access level always visible.
+- Connect faculty, mentors, projects, technologies, and events so a student can move from an interest to relevant people and active work.
+- Keep internal results visually distinct and never place them in a public answer.
+
+### Applicants and visitors from outside IIIT Delhi
+
+- Explain abbreviations such as CiPD and iPD-CP the first time they appear.
+- Put common public questions first: programme overview, eligibility, fees, grants, deadlines, application steps, projects, and official contacts.
+- Use plain language and give the direct answer before supporting detail.
+- Show a visible source link and “last checked” date for important facts.
+- When an answer is unavailable, provide the appropriate official contact route instead of a generic error.
+
+### Shared interaction design
+
+- Start with audience choices such as **IIIT Delhi member**, **prospective applicant**, and **industry or mentor**; use the choice only to prioritise suggestions, not to change facts.
+- Provide search suggestions and filter chips for projects, people, technologies, and events.
+- Keep answers short by default, with expandable sources and detail.
+- Preserve the user's current topic during follow-up questions while re-checking every factual claim against the knowledge base.
+- Design for mobile screens, keyboard navigation, readable contrast, and clear loading and error states.
 
 ## Questions the chatbot should answer
 
@@ -121,12 +135,12 @@ flowchart LR
     H --> G
     F --> I[Hybrid retrieval and reranking]
     G --> I
-    I --> J[Evidence and conflict check]
+    I --> J[Evidence and access check]
     J --> K[Grounded answer with citations]
     J --> L[Refusal and human handoff]
-    K --> M[Question log, feedback and evals]
+    K --> M[Question log and visitor analytics]
     L --> M
-    M --> N[Reviewed answer and FAQ drafts]
+    M --> N[FAQ gap dashboard]
 ```
 
 ### Suggested stack
@@ -189,18 +203,11 @@ Use content hashes and unique constraints to prevent duplicate documents and chu
 
 ## High-value features
 
-- **Guided programme finder:** asks a few questions and explains whether the programme appears relevant, while directing the user to the official application page.
-- **Project explorer:** filters and compares projects by domain, technology, team, and problem area.
-- **Faculty and mentor matcher:** suggests relevant people from published expertise without exposing private data.
-- **Deadline and freshness guard:** highlights stale or conflicting dates before an answer is shown.
-- **Application checklist:** creates a personalised list of official steps and required links.
-- **Event finder:** lists future events and can generate calendar-ready details.
-- **Source preview:** expands the exact paragraph used for each answer.
-- **Multilingual mode:** English and Hindi answers while citations remain tied to the original source.
-- **Accessible interface:** keyboard navigation, screen-reader labels, adjustable text size, and optional voice input.
-- **Human handoff:** routes unanswered partnership, admissions, or project enquiries to the official contact channel.
-- **Admin dashboard:** crawl status, stale pages, unanswered questions, feedback, citation failures, and popular topics.
-- **Draft knowledge queue:** clusters unanswered questions and prepares evidence-backed FAQ drafts for staff review.
+- **Ask CiPD:** public answers grounded in retrieved public paragraphs, with citations and official-contact handoff when evidence is absent.
+- **Verified important facts:** deadlines, fees, grants, eligibility, and contacts are checked against structured records linked to their sources.
+- **Discovery search:** finds and connects projects, faculty, mentors, technologies, and events.
+- **FAQ gap analytics:** shows what college members and outside visitors ask, which topics are missing, and where handoffs occur.
+- **Internal staff search:** gives authenticated, authorised IIIT Delhi users a clearly labelled search experience for approved internal material.
 
 ## Safety and privacy
 
@@ -245,14 +252,15 @@ Track:
 
 ### Phase 2: website-ready assistant
 
-- Add filters, project explorer, session memory, feedback, and a responsive embeddable widget.
-- Add scheduled refreshes and stale-content alerts.
-- Add content-change alerts, conflict detection, reviewed answer drafts, monitoring, rate limits, and privacy-safe analytics.
+- Add audience-aware starting prompts, discovery filters, session context, and a responsive embeddable widget.
+- Add structured records for deadlines, fees, grants, eligibility, and official contacts.
+- Add privacy-safe question analytics and the FAQ gap dashboard.
+- Add monitoring and rate limits.
 
 ### Phase 3: advanced experience
 
-- Add Hindi, voice input, event recommendations, application checklists, and faculty/project matching.
-- Add role-aware staff search, document comparison, and the admin review queue for unanswered or conflicting questions.
+- Add role-aware internal staff search with PostgreSQL access policies.
+- Improve cross-search and relationships among projects, faculty, mentors, technologies, and events.
 
 ## Reference implementation guidance
 
