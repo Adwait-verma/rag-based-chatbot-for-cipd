@@ -14,6 +14,57 @@ Every factual answer should:
 - distinguish current details from archived cohort information;
 - decline to guess when the sources do not support an answer.
 
+## Core system modules
+
+These three modules are the starting requirements for the project.
+
+### 1. Content database
+
+Use PostgreSQL with pgvector as the shared knowledge and product database. It should store:
+
+- source documents and version history;
+- paragraph or section chunks with embeddings;
+- extracted metadata and ingestion status;
+- anonymous visitor events;
+- user question logs and retrieval traces;
+- staff-reviewed answer and FAQ drafts.
+
+Every document and derived chunk must carry a visibility label: `public`, `internal`, or `confidential`. The public website assistant may retrieve only `public` rows. Authenticated staff tools may use approved `internal` content. `confidential` content must be excluded from normal chatbot retrieval and accessible only to specifically authorised administrators. Enforce this boundary in database queries and PostgreSQL row-level security rather than relying only on the prompt.
+
+### 2. Ingestion pipeline
+
+The pipeline reads approved web pages and PDFs, detects section boundaries, creates one embedding per meaningful chunk, and stores the source relationship for citations. It automatically extracts fields such as title, authors, publication year, page number, section heading, cohort, document type, and canonical URL.
+
+Extracted metadata must be checked against a fixed schema. Missing, malformed, contradictory, or low-confidence fields go to a review queue instead of being silently stored. Scanned PDFs should use OCR, while tables, deadlines, fees, and other structured facts should be preserved as structured records as well as searchable text.
+
+### 3. “Ask CiPD” assistant
+
+Embed a public chat widget on the CiPD website. It answers only from retrieved `public` paragraphs, places citations beside supported claims, and shows the source title and last indexed date. If evidence is missing or conflicting, it should say that it cannot verify the answer and offer the official contact or enquiry form. It must never search `internal` or `confidential` content for a public visitor.
+
+The first version should support programme, project, faculty, event, application, partnership, and contact questions. It should retain short session context while treating each factual statement as a new retrieval task.
+
+## Additional product ideas
+
+### Priority additions
+
+- **Content change monitor:** compare each crawl with the previous version and alert staff when deadlines, fees, application links, people, or project details change.
+- **Conflict detector:** identify contradictory dates or facts across the website and brochures before the chatbot publishes an answer.
+- **Unanswered-question workflow:** group unanswered visitor questions, propose a draft answer or FAQ entry, attach the related evidence, and require staff approval before publication.
+- **FAQ gap dashboard:** rank missing topics by frequency, visitor type, and unsuccessful searches so CiPD can improve the website using real demand.
+- **Admin source console:** show ingestion failures, quarantined metadata, stale documents, access classification, citation coverage, and the last successful refresh.
+- **Role-aware staff search:** provide authenticated staff with a separate search interface for approved internal material while preserving the public/internal/confidential boundary.
+
+### Useful extensions
+
+- **Application journey assistant:** guide a visitor from eligibility and programme fit through the official application steps, scholarships, grants, and contact route.
+- **Project and expertise discovery:** connect projects, technologies, categories, faculty expertise, mentors, and events through structured metadata without requiring a separate graph database initially.
+- **Document comparison:** compare the current brochure with an older cohort and clearly mark which facts changed.
+- **Event and deadline reminders:** let users opt in to calendar files or reminder links based on verified event data.
+- **Multilingual retrieval:** accept English or Hindi questions, retrieve from the original source language, and keep citations tied to the exact source text.
+- **Voice and accessibility mode:** support speech input, keyboard-only navigation, screen-reader labels, adjustable type, and concise answer mode.
+- **Feedback-assisted evaluation:** turn incorrect-answer reports and failed handoffs into reviewed evaluation cases without automatically training on raw visitor text.
+- **CMS drafting assistant:** prepare reviewed drafts for FAQs, project summaries, event descriptions, and image alt text; publishing always remains a staff action.
+
 ## Questions the chatbot should answer
 
 ### CiPD and iPD-CP
@@ -59,18 +110,23 @@ The crawler must stay within approved CiPD and IIIT Delhi domains. External link
 
 ```mermaid
 flowchart LR
-    A[CiPD pages and PDFs] --> B[Crawler and parser]
-    B --> C[Cleaning, deduplication, versioning]
-    C --> D[Semantic chunks with metadata]
-    D --> E[Vector index]
-    D --> F[Keyword index]
-    Q[User question] --> G[Query rewrite and intent detection]
-    G --> E
-    G --> F
-    E --> H[Hybrid retrieval and reranking]
-    F --> H
-    H --> I[Grounded answer with citations]
-    I --> J[Feedback and evaluation logs]
+    A[CiPD pages and PDFs] --> B[Crawler, PDF parser and OCR]
+    B --> C[Schema validation and review queue]
+    C --> D[Deduplication and versioning]
+    D --> E[PostgreSQL documents and chunks]
+    E --> F[pgvector index]
+    E --> G[Full-text index]
+    Q[Public question] --> H[Intent and public-access filter]
+    H --> F
+    H --> G
+    F --> I[Hybrid retrieval and reranking]
+    G --> I
+    I --> J[Evidence and conflict check]
+    J --> K[Grounded answer with citations]
+    J --> L[Refusal and human handoff]
+    K --> M[Question log, feedback and evals]
+    L --> M
+    M --> N[Reviewed answer and FAQ drafts]
 ```
 
 ### Suggested stack
@@ -85,27 +141,51 @@ flowchart LR
 - **Frontend:** Next.js/React widget that can be embedded on the CiPD website
 - **Deployment:** Docker, CI checks, managed PostgreSQL, scheduled ingestion job
 
+PostgreSQL is the preferred production store because vector search, full-text search, metadata, visitor events, question logs, drafts, and access policies can share one transactional system. pgvector supports exact search and HNSW or IVFFlat approximate indexes; combine vector results with PostgreSQL full-text results using reciprocal rank fusion or a reranker.
+
+## Proposed database model
+
+| Table | Purpose | Important fields |
+|---|---|---|
+| `documents` | One logical source | `id`, `canonical_url`, `title`, `authors`, `year`, `document_type`, `visibility`, `status` |
+| `document_versions` | Immutable snapshots for freshness and comparison | `document_id`, `content_hash`, `published_at`, `indexed_at`, `supersedes_id` |
+| `chunks` | Searchable paragraph or section units | `version_id`, `heading_path`, `page_number`, `text`, `embedding`, `token_count`, `visibility` |
+| `structured_facts` | Dates, fees, grants, eligibility, contacts, and other sensitive-to-change facts | `subject`, `predicate`, `value`, `valid_from`, `valid_until`, `source_chunk_id` |
+| `ingestion_jobs` | Crawl and validation audit trail | `source`, `started_at`, `completed_at`, `status`, `error`, `review_required` |
+| `visitor_events` | Privacy-safe product analytics | `session_id`, `event_type`, `page`, `occurred_at`, `metadata` |
+| `question_logs` | Questions, retrieval results, answer outcome, and feedback | `session_id`, `question`, `intent`, `answer_status`, `citations`, `latency_ms` |
+| `answer_drafts` | Human-reviewed proposed answers or FAQ entries | `question_cluster`, `draft`, `evidence_ids`, `review_status`, `reviewed_by` |
+
+Use content hashes and unique constraints to prevent duplicate documents and chunks. Keep raw visitor identifiers out of analytics where possible, and define retention periods for question logs and events.
+
 ## Ingestion and indexing specification
 
-1. Crawl the approved routes and discover project, event, blog, and profile detail pages.
-2. Extract page title, headings, paragraphs, lists, tables, links, dates, and document version.
-3. Remove navigation, repeated footer content, duplicated profiles, and duplicate project records.
-4. Canonicalise URLs and compute a content hash to prevent duplicate chunks.
-5. Split by semantic section, aiming for 400-700 tokens with 10-15% overlap.
-6. Attach metadata: `source_url`, `page_type`, `title`, `section`, `category`, `person`, `project`, `event_date`, `cohort`, `published_at`, `indexed_at`, and `content_hash`.
-7. Keep previous versions of time-sensitive pages so a current answer cannot accidentally mix old and new cohort details.
-8. Re-index on a schedule and support an admin-triggered refresh after CMS updates.
+1. Crawl approved routes and discover project, event, blog, profile, and brochure sources.
+2. Parse HTML and PDFs; run OCR only when a page has no reliable text layer.
+3. Detect document and section boundaries before chunking so headings remain attached to their paragraphs.
+4. Extract title, authors, year, headings, paragraphs, lists, tables, links, dates, page numbers, and document version.
+5. Validate extracted metadata with a fixed Pydantic or JSON Schema model. Quarantine invalid or low-confidence results for review.
+6. Assign `public`, `internal`, or `confidential` visibility at document level and copy the effective label to every derived chunk.
+7. Remove navigation, repeated footer content, duplicated profiles, and duplicate project records.
+8. Canonicalise URLs and compute document and chunk hashes to prevent duplicate storage.
+9. Split by semantic section, aiming for 400-700 tokens with 10-15% overlap, while keeping tables and short policy sections intact.
+10. Attach metadata: `source_url`, `page_type`, `title`, `authors`, `year`, `section`, `page_number`, `category`, `person`, `project`, `event_date`, `cohort`, `visibility`, `published_at`, `indexed_at`, and `content_hash`.
+11. Store structured, time-sensitive facts separately and link each fact back to the source chunk that supports it.
+12. Keep previous versions so current answers cannot accidentally mix old and new cohort details.
+13. Re-index on a schedule and support an admin-triggered refresh after CMS updates.
 
 ## Retrieval and answer rules
 
 - Use hybrid retrieval: semantic similarity plus keyword/BM25 matching.
 - Apply metadata filters for page type, project category, person, event date, and cohort.
+- Apply the access filter before vector or keyword retrieval; the public assistant always requires `visibility = 'public'`.
 - Rerank the best candidates and send only the strongest evidence to the language model.
 - Prefer the newest official source when multiple versions disagree.
 - For deadlines, fees, and funding, require two checks: the most recent cohort metadata and the source's visible date.
 - Put inline citations after the sentence they support.
 - Include a clear fallback such as: “I could not verify that from the current CiPD sources.”
 - Never invent admissions decisions, funding eligibility, availability, or contact details.
+- Log whether the request was answered, refused, or handed off; do not store passwords, form submissions, or unnecessary personal data.
 
 ## High-value features
 
@@ -120,10 +200,12 @@ flowchart LR
 - **Accessible interface:** keyboard navigation, screen-reader labels, adjustable text size, and optional voice input.
 - **Human handoff:** routes unanswered partnership, admissions, or project enquiries to the official contact channel.
 - **Admin dashboard:** crawl status, stale pages, unanswered questions, feedback, citation failures, and popular topics.
+- **Draft knowledge queue:** clusters unanswered questions and prepares evidence-backed FAQ drafts for staff review.
 
 ## Safety and privacy
 
 - Do not index unpublished CMS content, passwords, application submissions, private emails, or personal contact data.
+- Enforce document visibility through PostgreSQL roles and row-level security with default-deny policies for protected rows.
 - Redact secrets and personal data from logs.
 - Treat user prompts and retrieved pages as untrusted input; retrieved text cannot override system rules.
 - Rate-limit public endpoints and protect admin refresh actions.
@@ -154,20 +236,30 @@ Track:
 ### Phase 1: working prototype
 
 - Crawl the public CiPD website and brochures.
-- Build clean, deduplicated chunks.
+- Build the PostgreSQL/pgvector content database with document visibility labels.
+- Build schema-validated ingestion with a quarantine queue for bad extractions.
+- Build clean, deduplicated section chunks with citation metadata.
 - Add hybrid retrieval and cited answers.
-- Provide a simple chat page and an evaluation script.
+- Add refusal and official-contact handoff when evidence is absent.
+- Provide a simple “Ask CiPD” chat page, question logging, and an evaluation script.
 
 ### Phase 2: website-ready assistant
 
 - Add filters, project explorer, session memory, feedback, and a responsive embeddable widget.
 - Add scheduled refreshes and stale-content alerts.
-- Add monitoring, rate limits, and privacy-safe analytics.
+- Add content-change alerts, conflict detection, reviewed answer drafts, monitoring, rate limits, and privacy-safe analytics.
 
 ### Phase 3: advanced experience
 
 - Add Hindi, voice input, event recommendations, application checklists, and faculty/project matching.
-- Add an admin review queue for unanswered or conflicting questions.
+- Add role-aware staff search, document comparison, and the admin review queue for unanswered or conflicting questions.
+
+## Reference implementation guidance
+
+- [OpenAI retrieval guide](https://developers.openai.com/api/docs/guides/retrieval) for semantic search, attributes, ranking, and grounded response patterns.
+- [OpenAI evals guide](https://developers.openai.com/api/docs/guides/evals) for repeatable quality evaluation.
+- [pgvector documentation](https://github.com/pgvector/pgvector) for exact and approximate vector search, metadata filtering, and hybrid search with PostgreSQL full-text search.
+- [PostgreSQL row security documentation](https://www.postgresql.org/docs/current/ddl-rowsecurity.html) for enforcing public, internal, and confidential access policies.
 
 ## Initial success criteria
 
@@ -176,4 +268,3 @@ Track:
 - No duplicate project or faculty records in the index.
 - Most common questions answered in under five seconds in the deployed environment.
 - Every answer includes a source or explicitly states that it could not be verified.
-
