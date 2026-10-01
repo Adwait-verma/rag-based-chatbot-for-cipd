@@ -1,6 +1,12 @@
 # RAG Based Chatbot for CiPD
 
-An individual project for the Centre for Intelligent Product Development (CiPD), IIIT Delhi. The chatbot answers questions about CiPD and the iPD-CP programme using the centre's published content, with source citations and freshness checks.
+A production-oriented project for the live Centre for Intelligent Product Development (CiPD), IIIT Delhi website. The chatbot answers questions about CiPD and the iPD-CP programme using the centre's published content, with source citations and freshness checks.
+
+## Production focus
+
+This is a **CiPD Knowledge and Discovery Assistant**, not a general college chatbot. Its niche is verified programme information, discovery across CiPD projects and people, and evidence showing which visitor questions the live website still does not answer.
+
+The scope is based on a live-site audit covering the programme, projects, faculty, guest faculty, events, blogs, Connect, Idea submissions, FAQs, and cohort brochures. See the full [production product analysis](docs/CIPD_CHATBOT_PRODUCT_ANALYSIS.md) for observed content gaps, audience journeys, retrieval rules, evaluation targets, and demonstration scenarios.
 
 ## Product goal
 
@@ -271,8 +277,11 @@ Track:
 
 ## Initial success criteria
 
-- At least 90% citation correctness on the reviewed test set.
-- No unsupported current deadline, fee, funding, or eligibility claims.
+- 100% correct cohort selection for reviewed deadline, fee, funding, and eligibility questions.
+- At least 95% citation correctness and citation coverage on the reviewed test set.
+- Zero public retrieval of internal or confidential chunks.
+- At least 85% successful top-three discovery matches on professor-reviewed cases.
+- At least 90% correct routing to Apply, Connect, Idea, event, project, or contact destinations.
 - No duplicate project or faculty records in the index.
-- Most common questions answered in under five seconds in the deployed environment.
+- Most common questions answered within five seconds at the 95th percentile.
 - Every answer includes a source or explicitly states that it could not be verified.
